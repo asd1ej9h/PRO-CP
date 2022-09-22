@@ -31,8 +31,10 @@ Try branch ```local_compaction```
 
 ### Test Kvrocks
 - Use the branch ```kvrocks```
-- Build: ```./x.py build```
-    Attention: Default kvrocks only support rocksdb v6.x.x, to adjust to v7.x.x, add the following into "include/rocksdb/db.h" at line 1215
+- Before build:
+    - local mode: modify "cmake/rocksdb.cmake" line 30 ```origin/local_compaction```
+    - remote mode: modify "cmake/rocksdb.cmake" line 30 ```origin/main```
+    - **Attention**: Default kvrocks only support rocksdb v6.x.x. To adjust v7.x.x, add the following into "include/rocksdb/db.h" at line 1215
     ```
       // Deprecated versions of GetApproximateSizes
       ROCKSDB_DEPRECATED_FUNC virtual void GetApproximateSizes(
@@ -53,12 +55,16 @@ Try branch ```local_compaction```
         GetApproximateSizes(column_family, range, n, sizes, include_flags);
       }
     ```
-    - local mode: before build, modify "cmake/rocksdb.cmake" line 30 ```origin/main```
-    - remote mode: before build, modify "cmake/rocksdb.cmake" line 30 ```origin/local_compaction```
+- Build: ```./x.py build```
 - Single mode:
     - build/kvrocks -c kvrocks.conf 
 - Cluster mode:
+    - Based on ```kvrocks controller``` https://github.com/KvrocksLabs/kvrocks_controller.git with commit ```df83752849ef41ce91037ca5c9cc6c670a480d56```
+    - Dependencies: etcd https://etcd.io/docs/v3.5/install/
+    - Build ```kvrocks controller```: make
+    - Start controller server: ```./_build/kvrocks-controller-server -c ./config/config.yaml```
+    - A fast way to build cluster: ```python scripts/e2e_test.py```
+    - Check cluster status: ```./_build/kvrocks-controller-cli -c ./config/kc_cli_config.yaml```
     - modify kvrocks.conf: port(e.g., 30001-30006), cluster-enabled(yes), dir /tmp/kvrocks(/tmp/kvrocks1-6)
-    - Based on ```kvrocks controller``` https://github.com/KvrocksLabs/kvrocks_controller.git to build control server(Build: make)
-        use commit ```df83752849ef41ce91037ca5c9cc6c670a480d56```
-        Dependencies: etcd https://etcd.io/docs/v3.5/install/
+
+
