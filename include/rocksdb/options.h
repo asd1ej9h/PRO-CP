@@ -62,6 +62,26 @@ struct DbPath;
 
 using FileTypeSet = SmallEnumSet<FileType, FileType::kBlobFile>;
 
+struct CompactionAdditionInfo {
+  double score;
+  uint64_t num_entries;
+  uint64_t num_deletions;
+  uint64_t compensated_file_size;
+  int output_level;
+  int start_level;
+  CompactionAdditionInfo(double _score, uint64_t _num_entries,
+                         uint64_t _num_deletions,
+                         uint64_t _compensated_file_size, int _output_level,
+                         int _start_level)
+      : score(_score),
+        num_entries(_num_entries),
+        num_deletions(_num_deletions),
+        compensated_file_size(_compensated_file_size),
+        output_level(_output_level),
+        start_level(_start_level) {}
+  CompactionAdditionInfo() = default;
+};
+
 struct ColumnFamilyOptions : public AdvancedColumnFamilyOptions {
   // The function recovers options to a previous version. Only 4.6 or later
   // versions are supported.
@@ -422,6 +442,13 @@ class CompactionService : public Customizable {
   // Wait for remote compaction to finish.
   virtual CompactionServiceJobStatus WaitForCompleteV2(
       const CompactionServiceJobInfo& /*info*/,
+      std::string* /*compaction_service_result*/) {
+    return CompactionServiceJobStatus::kUseLocal;
+  }
+
+  virtual CompactionServiceJobStatus WaitForCompleteV2(
+      const CompactionServiceJobInfo& /*info*/,
+      const CompactionAdditionInfo& /*compaction_addition_info*/,
       std::string* /*compaction_service_result*/) {
     return CompactionServiceJobStatus::kUseLocal;
   }

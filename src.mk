@@ -43,6 +43,8 @@ LIB_SOURCES =                                                   \
   db/db_impl/db_impl_experimental.cc                            \
   db/db_impl/db_impl_files.cc                                   \
   db/db_impl/db_impl_open.cc                                    \
+  db/compaction/compaction_service.cc							\
+  db/compaction/remote_compaction/primary_db.cc					\
   db/db_impl/db_impl_readonly.cc                                \
   db/db_impl/db_impl_secondary.cc                               \
   db/db_impl/db_impl_write.cc                                   \

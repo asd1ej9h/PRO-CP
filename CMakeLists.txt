@@ -66,8 +66,8 @@ endif(CCACHE_FOUND)
 
 option(WITH_JEMALLOC "build with JeMalloc" OFF)
 option(WITH_LIBURING "build with liburing" ON)
-option(WITH_SNAPPY "build with SNAPPY" OFF)
-option(WITH_LZ4 "build with lz4" OFF)
+option(WITH_SNAPPY "build with SNAPPY" ON)
+option(WITH_LZ4 "build with lz4" ON)
 option(WITH_ZLIB "build with zlib" OFF)
 option(WITH_ZSTD "build with zstd" OFF)
 option(WITH_WINDOWS_UTF8_FILENAMES "use UTF8 as characterset for opening files, regardles of the system code page" OFF)
@@ -85,6 +85,12 @@ if( NOT DEFINED CMAKE_CXX_STANDARD )
 endif()
 
 include(CMakeDependentOption)
+
+include_directories(
+        "/usr/local/include"
+        "third-party/rest_rpc/include"
+        "third-party/rest_rpc/thirdparty/msgpack-c/include"
+        "third-party/rest_rpc/thirdparty/asio")
 
 if(MSVC)
   option(WITH_GFLAGS "build with GFlags" OFF)
@@ -351,7 +357,7 @@ if (NOT WITH_PERF_CONTEXT)
   add_definitions(-DNPERF_CONTEXT)
 endif()
 
-option(FAIL_ON_WARNINGS "Treat compile warnings as errors" ON)
+option(FAIL_ON_WARNINGS "Treat compile warnings as errors" OFF)
 if(FAIL_ON_WARNINGS)
   if(MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX")
@@ -890,7 +896,9 @@ set(SOURCES
         utilities/ttl/db_ttl_impl.cc
         utilities/wal_filter.cc
         utilities/write_batch_with_index/write_batch_with_index.cc
-        utilities/write_batch_with_index/write_batch_with_index_internal.cc)
+        utilities/write_batch_with_index/write_batch_with_index_internal.cc
+        db/compaction/compaction_service.cc
+        db/compaction/remote_compaction/primary_db.cc)
 
 list(APPEND SOURCES
   utilities/transactions/lock/range/range_tree/lib/locktree/concurrent_tree.cc
@@ -905,6 +913,10 @@ list(APPEND SOURCES
   utilities/transactions/lock/range/range_tree/lib/standalone_port.cc
   utilities/transactions/lock/range/range_tree/lib/util/dbt.cc
   utilities/transactions/lock/range/range_tree/lib/util/memarena.cc)
+
+if (NOT ROCKSDB_PLUGINS)
+  set(ROCKSDB_PLUGINS "hdfs")
+endif ()
 
 message(STATUS "ROCKSDB_PLUGINS: ${ROCKSDB_PLUGINS}")
 if ( ROCKSDB_PLUGINS )
@@ -1003,7 +1015,7 @@ set(ROCKSDB_PLUGIN_BUILTINS "")
 message(STATUS "ROCKSDB PLUGINS TO BUILD ${ROCKSDB_PLUGINS}")
 list(APPEND PLUGINS ${ROCKSDB_PLUGINS})
 foreach(PLUGIN IN LISTS PLUGINS)
-  set(PLUGIN_ROOT "${CMAKE_SOURCE_DIR}/plugin/${PLUGIN}/")
+  set(PLUGIN_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/plugin/${PLUGIN}/")
   message("including rocksb plugin ${PLUGIN_ROOT}")
   set(PLUGINMKFILE "${PLUGIN_ROOT}${PLUGIN}.mk")
   if (NOT EXISTS ${PLUGINMKFILE})
@@ -1416,6 +1428,18 @@ if(WITH_TESTS)
   set(TESTUTILLIB testutillib${ARTIFACT_SUFFIX})
   add_library(${TESTUTILLIB} STATIC ${TESTUTIL_SOURCE})
   target_link_libraries(${TESTUTILLIB} ${ROCKSDB_LIB})
+
+  set(REMOTECOMPACTION_SOURCE
+          db/compaction/remote_compaction/worker_agent.cc
+          db/compaction/remote_compaction/coordinator.cc
+          db/compaction/remote_compaction/primary_db.cc
+          db/compaction/compaction_service.cc
+          db/compaction/remote_compaction/scheduler.cc
+          db/compaction/remote_compaction/job_distributor.cc
+          db/compaction/remote_compaction/monitor.cc)
+  set(REMOTECOMPACTIONLIB remotecompactionlib${ARTIFACT_SUFFIX})
+  add_library(${REMOTECOMPACTIONLIB} STATIC ${REMOTECOMPACTION_SOURCE})
+
   if(MSVC)
     set_target_properties(${TESTUTILLIB} PROPERTIES COMPILE_FLAGS "/Fd${CMAKE_CFG_INTDIR}/testutillib${ARTIFACT_SUFFIX}.pdb")
   endif()
@@ -1434,7 +1458,7 @@ if(WITH_TESTS)
         EXCLUDE_FROM_DEFAULT_BUILD_RELWITHDEBINFO 1
         OUTPUT_NAME ${exename}${ARTIFACT_SUFFIX}
       )
-      target_link_libraries(${exename}${ARTIFACT_SUFFIX} testutillib${ARTIFACT_SUFFIX} testharness gtest ${THIRDPARTY_LIBS} ${ROCKSDB_LIB})
+      target_link_libraries(${exename}${ARTIFACT_SUFFIX} testutillib${ARTIFACT_SUFFIX} testharness gtest ${THIRDPARTY_LIBS} ${ROCKSDB_LIB} ${REMOTECOMPACTIONLIB})
       if(NOT "${exename}" MATCHES "db_sanity_test")
         gtest_discover_tests(${exename} DISCOVERY_TIMEOUT 120)
         add_dependencies(check ${exename}${ARTIFACT_SUFFIX})
@@ -1461,13 +1485,13 @@ if(WITH_TESTS)
   endif()
 endif()
 
-if(WITH_BENCHMARK_TOOLS)
+if (WITH_BENCHMARK_TOOLS)
   add_executable(db_bench${ARTIFACT_SUFFIX}
-    tools/simulated_hybrid_file_system.cc
-    tools/db_bench.cc
-    tools/db_bench_tool.cc)
+          tools/simulated_hybrid_file_system.cc
+          tools/db_bench.cc
+          tools/db_bench_tool.cc)
   target_link_libraries(db_bench${ARTIFACT_SUFFIX}
-    ${ROCKSDB_LIB} ${THIRDPARTY_LIBS})
+    ${ROCKSDB_LIB} ${THIRDPARTY_LIBS} ${REMOTECOMPACTIONLIB} )
 
   add_executable(cache_bench${ARTIFACT_SUFFIX}
     cache/cache_bench.cc
@@ -1499,6 +1523,20 @@ if(WITH_BENCHMARK_TOOLS)
     utilities/persistent_cache/hash_table_bench.cc)
   target_link_libraries(hash_table_bench${ARTIFACT_SUFFIX}
     ${ROCKSDB_LIB} ${GFLAGS_LIB})
+
+  add_executable(
+           coordinator${ARTIFACT_SUFFIX}
+          db/compaction/remote_compaction/coordinator.cc
+          )
+  target_link_libraries(coordinator${ARTIFACT_SUFFIX}
+          ${ROCKSDB_LIB} ${GFLAGS_LIB} ${THIRDPARTY_LIBS} ${REMOTECOMPACTIONLIB})
+
+  add_executable(
+          worker_agent${ARTIFACT_SUFFIX}
+          db/compaction/remote_compaction/worker_agent.cc
+  )
+  target_link_libraries(worker_agent${ARTIFACT_SUFFIX}
+          ${ROCKSDB_LIB} ${GFLAGS_LIB} ${THIRDPARTY_LIBS})
 endif()
 
 if(WITH_CORE_TOOLS OR WITH_TOOLS)

@@ -53,11 +53,13 @@
 #include <set>
 #include <vector>
 
+#include "db/compaction/remote_compaction/rpc_config.h"
 #include "env/composite_env_wrapper.h"
 #include "env/io_posix.h"
 #include "logging/posix_logger.h"
 #include "monitoring/iostats_context_imp.h"
 #include "monitoring/thread_status_updater.h"
+#include "plugin/hdfs/env_hdfs.h"
 #include "port/port.h"
 #include "rocksdb/env.h"
 #include "rocksdb/options.h"
@@ -412,6 +414,10 @@ PosixEnv::PosixEnv()
       mu_(mu_storage_),
       threads_to_join_(threads_to_join_storage_),
       allow_non_owner_access_(allow_non_owner_access_storage_) {
+  std::shared_ptr<FileSystem> fs;
+  Status s = NewHdfsFileSystem(RPC_NAMESPACE::hdfs_address, &fs);
+  assert(s.ok());
+  file_system_ = std::move(fs);
   ThreadPoolImpl::PthreadCall("mutex_init", pthread_mutex_init(&mu_, nullptr));
   for (int pool_id = 0; pool_id < Env::Priority::TOTAL; ++pool_id) {
     thread_pools_[pool_id].SetThreadPriority(
