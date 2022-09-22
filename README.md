@@ -1,32 +1,32 @@
-## RocksDB: A Persistent Key-Value Store for Flash and RAM Storage
+## **PRO-CP**
 
-[![CircleCI Status](https://circleci.com/gh/facebook/rocksdb.svg?style=svg)](https://circleci.com/gh/facebook/rocksdb)
-[![TravisCI Status](https://api.travis-ci.com/facebook/rocksdb.svg?branch=main)](https://travis-ci.com/github/facebook/rocksdb)
-[![Appveyor Build status](https://ci.appveyor.com/api/projects/status/fbgfu0so3afcno78/branch/main?svg=true)](https://ci.appveyor.com/project/Facebook/rocksdb/branch/main)
-[![PPC64le Build Status](http://140-211-168-68-openstack.osuosl.org:8080/buildStatus/icon?job=rocksdb&style=plastic)](http://140-211-168-68-openstack.osuosl.org:8080/job/rocksdb)
+### **Dependencies**
 
-RocksDB is developed and maintained by Facebook Database Engineering Team.
-It is built on earlier work on [LevelDB](https://github.com/google/leveldb) by Sanjay Ghemawat (sanjay@google.com)
-and Jeff Dean (jeff@google.com)
+- Linux - Ubuntu
+    - Prepare for the dependencies of RocksDB: [https://github.com/facebook/rocksdb/blob/main/INSTALL.md](https://github.com/facebook/rocksdb/blob/main/INSTALL.md)
+    - Install and config HDFS server
 
-This code is a library that forms the core building block for a fast
-key-value server, especially suited for storing data on flash drives.
-It has a Log-Structured-Merge-Database (LSM) design with flexible tradeoffs
-between Write-Amplification-Factor (WAF), Read-Amplification-Factor (RAF)
-and Space-Amplification-Factor (SAF). It has multi-threaded compactions,
-making it especially suitable for storing multiple terabytes of data in a
-single database.
+### **Use of PRO-CP (remote compaction mode)**
 
-Start with example usage here: https://github.com/facebook/rocksdb/tree/main/examples
+- Config the address of coordinator (control plane) ,worker_agent (CSA) and HDFS server in `db/compaction/remote_compaction/rpc_config.h`
+- Build and compile
+- Run coordinator and worker_agent
 
-See the [github wiki](https://github.com/facebook/rocksdb/wiki) for more explanation.
+```shell
+git submodule update --init --recursive
+cd $build
+ulimit -n 130000
+./coordinator #run coordinator
+./worker_agent #run worker agent
+```
 
-The public interface is in `include/`.  Callers should not include or
-rely on the details of any other header files in this package.  Those
-internal APIs may be changed without warning.
+- Notice that multiple worker agents should bind with one coordinator.
 
-Questions and discussions are welcome on the [RocksDB Developers Public](https://www.facebook.com/groups/rocksdb.dev/) Facebook group and [email list](https://groups.google.com/g/rocksdb) on Google Groups.
+### **The local compaction mode**
 
-## License
+Try commit `52e1efb885ea9940b17cca089b5f209800ad7b36`
 
-RocksDB is dual-licensed under both the GPLv2 (found in the COPYING file in the root directory) and Apache 2.0 License (found in the LICENSE.Apache file in the root directory).  You may select, at your option, one of the above-listed licenses.
+### **Test Nebula**
+
+- Use the branch `nebula`, follow the tips in [https://docs.nebula-graph.io/3.2.0/4.deployment-and-installation/2.compile-and-install-nebula-graph/1.install-nebula-graph-by-compiling-the-source-code/](https://docs.nebula-graph.io/3.2.0/4.deployment-and-installation/2.compile-and-install-nebula-graph/1.install-nebula-graph-by-compiling-the-source-code/)
+- When compiling, replace `build/third-party/install/include/rocksdb/` and `build/third-party/install/lib/librocksdb.a` with the header files and libs produced by `main` branch of this repo.
