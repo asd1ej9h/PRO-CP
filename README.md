@@ -36,7 +36,7 @@ tmp_options.compaction_service = std::make_shared<MyTestCompactionService>(
 - If the `main` branch cannot compile, you can try `rest_rpc` branch
 
 ### Test Kvrocks
-- Clone the `Kvrocks` repository
+- Clone `Kvrocks` at https://github.com/apache/incubator-kvrocks
 - Before build:
     - modify this part in "cmake/rocksdb.cmake" to switch the branch of the default RocksDB to this repository
      ```
