@@ -1,31 +1,59 @@
-## RocksDB: A Persistent Key-Value Store for Flash and RAM Storage
+## **PRO-CP**
 
-[![CircleCI Status](https://circleci.com/gh/facebook/rocksdb.svg?style=svg)](https://circleci.com/gh/facebook/rocksdb)
-[![Appveyor Build status](https://ci.appveyor.com/api/projects/status/fbgfu0so3afcno78/branch/main?svg=true)](https://ci.appveyor.com/project/Facebook/rocksdb/branch/main)
-[![PPC64le Build Status](http://140-211-168-68-openstack.osuosl.org:8080/buildStatus/icon?job=rocksdb&style=plastic)](http://140-211-168-68-openstack.osuosl.org:8080/job/rocksdb)
+### **Dependencies**
 
-RocksDB is developed and maintained by Facebook Database Engineering Team.
-It is built on earlier work on [LevelDB](https://github.com/google/leveldb) by Sanjay Ghemawat (sanjay@google.com)
-and Jeff Dean (jeff@google.com)
+- Linux - Ubuntu
+    - Prepare for the dependencies of RocksDB: [https://github.com/facebook/rocksdb/blob/main/INSTALL.md](https://github.com/facebook/rocksdb/blob/main/INSTALL.md)
+    - Install and config HDFS server
+    - Install gRPC
 
-This code is a library that forms the core building block for a fast
-key-value server, especially suited for storing data on flash drives.
-It has a Log-Structured-Merge-Database (LSM) design with flexible tradeoffs
-between Write-Amplification-Factor (WAF), Read-Amplification-Factor (RAF)
-and Space-Amplification-Factor (SAF). It has multi-threaded compactions,
-making it especially suitable for storing multiple terabytes of data in a
-single database.
+### **Use of PRO-CP (remote compaction mode)**
 
-Start with example usage here: https://github.com/facebook/rocksdb/tree/main/examples
+- Config the address of PRO-CP, CSA, and HDFS server in `include/rocksdb/options.h`
+- Build and compile
+- Run PRO-CP and CSA
 
-See the [github wiki](https://github.com/facebook/rocksdb/wiki) for more explanation.
+```shell
+cd $build
+./procp_server #run PRO-CP server
+./csa_server #run CSA server
+```
 
-The public interface is in `include/`.  Callers should not include or
-rely on the details of any other header files in this package.  Those
-internal APIs may be changed without warning.
+- Notice that multiple CSAs should bind with one PRO-CP.
+### **The local compaction mode**
+Search the repository for this code and delete it.
+```c++
+tmp_options.compaction_service = std::make_shared<MyTestCompactionService>(
+      dbname, compaction_options, compaction_stats, remote_listeners,
+      remote_table_properties_collector_factories);
+```
 
-Questions and discussions are welcome on the [RocksDB Developers Public](https://www.facebook.com/groups/rocksdb.dev/) Facebook group and [email list](https://groups.google.com/g/rocksdb) on Google Groups.
 
-## License
 
-RocksDB is dual-licensed under both the GPLv2 (found in the COPYING file in the root directory) and Apache 2.0 License (found in the LICENSE.Apache file in the root directory).  You may select, at your option, one of the above-listed licenses.
+### Test Nebula
+- Use the branch ```nebula```, follow the tips in https://docs.nebula-graph.io/3.2.0/4.deployment-and-installation/2.compile-and-install-nebula-graph/1.install-nebula-graph-by-compiling-the-source-code/ 
+- when compiling, replace ```build/third-party/install/include/rocksdb/``` and ```build/third-party/install/lib/librocksdb.a``` with the header files and libs produced by ```main``` branch of this repo.
+- If the `main` branch cannot compile, you can try `rest_rpc` branch
+
+### Test Kvrocks
+- Clone the `Kvrocks` repository
+- Before build:
+    - modify this part in "cmake/rocksdb.cmake" to switch the branch of the default RocksDB to this repository
+     ```
+     FetchContent_DeclareGitHubWithMirror(rocksdb
+        facebook/rocksdb v7.8.3
+        MD5=f0cbf71b1f44ce8f50407415d38b9d44
+      )
+     ```
+
+- Build: ```./x.py build```
+- Single mode:
+    - build/kvrocks -c kvrocks.conf 
+- Cluster mode:
+    - Based on ```kvrocks controller``` https://github.com/KvrocksLabs/kvrocks_controller.git with commit ```df83752849ef41ce91037ca5c9cc6c670a480d56```
+    - Dependencies: etcd https://etcd.io/docs/v3.5/install/
+    - Build ```kvrocks controller```: make
+    - Start controller server: ```./_build/kvrocks-controller-server -c ./config/config.yaml```
+    - A fast way to build cluster: ```python scripts/e2e_test.py```
+    - Check cluster status: ```./_build/kvrocks-controller-cli -c ./config/kc_cli_config.yaml```
+    - modify kvrocks.conf: port(e.g., 30001-30006), cluster-enabled(yes), dir /tmp/kvrocks(/tmp/kvrocks1-6)
